@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Noche de Multimedia</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+  <!-- GSAP con plugins -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/ScrollTrigger.min.js"></script>
+  <!-- Three.js para efectos 3D -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <!-- Particles.js para efectos de partículas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/particlesjs/2.2.3/particles.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap');
+
+    :root {
+      --primary-color: #6366f1;
+      --secondary-color: #ec4899;
+      --accent-color: #f59e0b;
+      --dark-color: #0f172a;
+      --light-color: #f8fafc;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      overflow-x: hidden;
+      background-color: var(--dark-color);
+    }
+
+    .noise {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 250 250' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      opacity: 0.05;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    #canvas-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -2;
+    }
+
+    .parallax-item {
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .glow {
+      filter: drop-shadow(0 0 8px rgba(236, 72, 153, 0.5));
+    }
+
+    .media-card {
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      backdrop-filter: blur(10px);
+      transform-style: preserve-3d;
+    }
+
+    .media-card:hover {
+      transform: translateY(-10px) rotateX(3deg) rotateY(3deg);
+      box-shadow: 
+        0 20px 25px -5px rgba(0, 0, 0, 0.2),
+        0 8px 10px -6px rgba(0, 0, 0, 0.2),
+        0 0 15px rgba(99, 102, 241, 0.5);
+    }
+
+    .media-card:hover .card-overlay {
+      opacity: 1;
+    }
+
+    .media-card:hover img {
+      transform: scale(1.1);
+    }
+
+    .card-overlay {
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .genre-badge {
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+      transform: translateZ(20px);
+    }
+
+    .type-badge {
+      transform: translateZ(20px);
+    }
+
+    .type-badge.movie {
+      background: linear-gradient(90deg, #f43f5e, #ec4899);
+    }
+
+    .type-badge.series {
+      background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    }
+
+    .type-badge.documentary {
+      background: linear-gradient(90deg, #10b981, #14b8a6);
+    }
+
+    .neo-button {
+      transition: all 0.3s ease;
+      box-shadow: inset 0 0 0 0.1em rgba(255, 255, 255, 0.3), 0 0 0 0 rgba(236, 72, 153, 0.3);
+    }
+
+    .neo-button:hover {
+      box-shadow: inset 0 0 0 0.1em rgba(255, 255, 255, 0.5), 0 0 20px 5px rgba(236, 72, 153, 0.3);
+    }
+
+    .random-selection-container {
+      perspective: 1000px;
+    }
+
+    .selection-box {
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .selection-title {
+      filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5));
+    }
+
+    /* Animación de brillo */
+    @keyframes glow {
+      0% { text-shadow: 0 0 5px rgba(236, 72, 153, 0.5); }
+      50% { text-shadow: 0 0 20px rgba(236, 72, 153, 0.8), 0 0 30px rgba(99, 102, 241, 0.5); }
+      100% { text-shadow: 0 0 5px rgba(236, 72, 153, 0.5); }
+    }
+
+    .animate-glow {
+      animation: glow 2s ease-in-out infinite;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(to bottom, var(--primary-color), var(--secondary-color));
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(to bottom, var(--secondary-color), var(--primary-color));
+    }
+
+    .category-selector {
+      padding: 4px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(10px);
+    }
+
+    .category-button {
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .category-button.active {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    }
+
+    .search-box {
+      backdrop-filter: blur(10px);
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+    }
+
+    /* Particle container */
+    #particles-js {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+
+    .confetti {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      opacity: 0.8;
+      z-index: 1000;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-white">
+  <!-- Noise texture overlay -->
+  <div class="noise"></div>
+
+  <!-- Three.js background container -->
+  <div id="canvas-container"></div>
+
+  <!-- Particles background -->
+  <div id="particles-js"></div>
+
+  <div class="relative z-10 max-w-7xl mx-auto px-4 py-8 md:px-8">
+    <!-- Header with animated text -->
+    <header class="text-center mb-12">
+      <h1 class="text-5xl md:text-7xl font-extrabold mb-6 animate-glow">
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-pink-500 to-amber-300">
+          Noche de Multimedia
+        </span>
+      </h1>
+      <p class="text-lg md:text-xl text-blue-200 mb-8 max-w-2xl mx-auto">
+        Agrega tus películas, series y documentales favoritos para elegir qué ver esta noche
+      </p>
+    </header>
+
+    <!-- Media type selector -->
+    <div class="category-selector max-w-lg mx-auto mb-8 flex justify-between p-1">
+      <button class="category-button active px-4 py-3 w-1/3 text-center font-semibold" data-type="movie">
+        Películas
+      </button>
+      <button class="category-button px-4 py-3 w-1/3 text-center font-semibold" data-type="series">
+        Series
+      </button>
+      <button class="category-button px-4 py-3 w-1/3 text-center font-semibold" data-type="documentary">
+        Documentales
+      </button>
+    </div>
+
+    <!-- Input and buttons section -->
+    <div class="search-box bg-white/10 rounded-2xl p-4 max-w-3xl mx-auto mb-12">
+      <div class="flex flex-col md:flex-row gap-4">
+        <div class="relative flex-grow">
+          <input 
+            type="text" 
+            id="mediaInput" 
+            placeholder="Buscar título..." 
+            class="w-full p-4 rounded-xl bg-white/10 border border-white/30 text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-pink-400"
+          >
+          <span id="searchIcon" class="absolute right-4 top-1/2 transform -translate-y-1/2 cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </span>
+        </div>
+        <button 
+          id="addBtn" 
+          class="neo-button px-6 py-4 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 font-bold flex items-center justify-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+          </svg>
+          Agregar
+        </button>
+      </div>
+    </div>
+
+    <!-- Media display section -->
+    <div id="mediaContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-16">
+      <!-- Media cards will be inserted here -->
+    </div>
+
+    <!-- Empty state message -->
+    <div id="emptyStateMessage" class="text-center py-16">
+      <div class="inline-block p-6 rounded-full bg-white/5 mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-indigo-300 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+        </svg>
+      </div>
+      <h3 class="text-xl font-semibold mb-2 text-indigo-200">Tu lista está vacía</h3>
+      <p class="text-blue-200 opacity-70 max-w-md mx-auto">
+        Añade tus películas, series o documentales favoritos para empezar
+      </p>
+    </div>
+
+    <!-- Random selection section -->
+    <div class="text-center mb-10">
+      <button 
+        id="chooseRandomBtn" 
+        class="neo-button px-10 py-5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 font-bold text-xl hidden"
+      >
+        <span class="flex items-center justify-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-6-6m0 0l6-6m-6 6h12" />
+          </svg>
+          Elegir Al Azar
+        </span>
+      </button>
+    </div>
+
+    <!-- Selection result container -->
+    <div id="selectionResultContainer" class="random-selection-container hidden">
+      <div class="selection-box bg-gradient-to-r from-indigo-900/50 to-purple-900/50 rounded-2xl p-8 mb-10 border border-white/10 backdrop-filter backdrop-blur-lg">
+        <h2 class="text-2xl font-semibold mb-4 text-center text-blue-200">La elección para esta noche es...</h2>
+        <div id="selectionResult" class="text-center">
+          <div class="selection-title text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-500 to-orange-500 mb-6"></div>
+          <div class="selection-metadata flex flex-wrap gap-3 justify-center"></div>
+          <div class="selection-poster mt-6 max-w-xs mx-auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="relative">
+      <div class="w-20 h-20 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      <div class="absolute inset-0 flex items-center justify-center">
+        <div class="w-12 h-12 border-4 border-pink-500 border-b-transparent rounded-full animate-spin"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Clase base para medios (implementando polimorfismo)
+    class Media {
+      constructor(data) {
+        this.data = data;
+        this.id = data.imdbID;
+        this.title = data.Title;
+        this.year = data.Year;
+        this.poster = data.Poster;
+        this.rating = data.imdbRating;
+        this.type = data.Type || 'movie'; // Valor por defecto
+      }
+
+      // Método para renderizar el elemento (implementado por subclases)
+      render() {
+        throw new Error('Método render debe ser implementado por subclases');
+      }
+      
+      // Método para obtener ícono según el tipo
+      getTypeIcon() {
+        throw new Error('Método getTypeIcon debe ser implementado por subclases');
+      }
+      
+      // Método para obtener la clase de badge según el tipo
+      getTypeBadgeClass() {
+        throw new Error('Método getTypeBadgeClass debe ser implementado por subclases');
+      }
+      
+      // Método para mostrar detalles al seleccionar
+      renderSelection() {
+        throw new Error('Método renderSelection debe ser implementado por subclases');
+      }
+    }
+
+    // Subclase para películas
+    class Movie extends Media {
+      constructor(data) {
+        super(data);
+        this.runtime = data.Runtime;
+        this.director = data.Director;
+      }
+      
+      getTypeIcon() {
+        return `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm3 2h6v4H7V5zm8 8v2h1v-2h-1zm-2-2H7v4h6v-4zm2 0h1V9h-1v2zm1-4V5h-1v2h1zM5 5v2H4V5h1zm0 4H4v2h1V9zm-1 4h1v2H4v-2z" clip-rule="evenodd" />
+                </svg>`;
+      }
+      
+      getTypeBadgeClass() {
+        return 'movie';
+      }
+      
+      render() {
+        const element = document.createElement('div');
+        element.className = 'media-card bg-black/30 rounded-xl overflow-hidden border border-white/10';
+        element.dataset.id = this.id;
+        
+        element.innerHTML = `
+          <div class="relative pb-[150%] overflow-hidden">
+            <img 
+              src="${this.poster !== 'N/A' ? this.poster : '/api/placeholder/300/450'}" 
+              alt="${this.title}"
+              class="absolute top-0 left-0 w-full h-full object-cover transition-transform duration-500"
+            >
+            <div class="card-overlay absolute inset-0 flex flex-col justify-end p-4">
+              <div class="absolute top-4 right-4 flex gap-2">
+                <span class="type-badge movie px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1">
+                  ${this.getTypeIcon()}
+                  Película
+                </span>
+              </div>
+              <h3 class="font-bold text-base md:text-lg mb-1 line-clamp-2">${this.title}</h3>
+              <div class="flex justify-between items-center">
+                <span class="text-sm opacity-80">${this.year}</span>
+                ${this.rating !== 'N/A' ? 
+                  `<div class="flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    <span class="text-sm font-bold">${this.rating}</span>
+                  </div>` : ''
+                }
+              </div>
+            </div>
+          </div>
+          <div class="p-3 flex justify-between items-center">
+            <span class="genre-badge px-2 py-1 rounded-md text-xs font-bold">
+              ${this.data.Genre ? this.data.Genre.split(',')[0] : 'Drama'}
+            </span>
+            <button class="delete-btn text-red-400 hover:text-red-600 transition-colors p-1">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        `;
+        
+        // Agregar event listener para el botón eliminar
+        element.querySelector('.delete-btn').addEventListener('click', () => {
+          mediaManager.removeMedia(this.id);
+        });
+        
+        return element;
+      }
+      
+      renderSelection() {
+        const selectionTitle = document.querySelector('#selectionResult .selection-title');
+        const selectionMetadata = document.querySelector('#selectionResult .selection-metadata');
+        const selectionPoster = document.querySelector('#selectionResult .selection-poster');
+        
+        selectionTitle.textContent = this.title;
+        
+        selectionMetadata.innerHTML = `
+          <span class="px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-sm flex items-center gap-1">
+            ${this.getTypeIcon()}
+            Película
+          </span>
+          ${this.year ? `
+          <span class="px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-sm">
+            ${this.year}
+          </span>` : ''}
+          ${this.runtime ? `
+          <span class="px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-sm">
+            ${this.runtime}
+          </span>` : ''}
+          ${this.rating !== 'N/A' ? `
+          <span class="px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-sm flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            ${this.rating}
+          </span>` : ''}
+        `;
+        
+        if (this.poster && this.poster !== 'N/A') {
+          selectionPoster.innerHTML = `<img src="${this.poster}" alt="${this.title}" class="w-full h-auto rounded-lg shadow-lg">`;
+        } else {
+          selectionPoster.innerHTML = '';
+        }
+      }
+    }
+
+    // Subclase para series
+    class Series extends Media {
+      constructor(data) {
+        super(data);
+        this.seasons = data.totalSeasons;
+        this.creator = data.Writer;
+      }
+      
+      getTypeIcon() {
+        return `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771L8.5 11.705a.499.499 0 00-.471-.705.5.5 0 00-.529.705L7.229 12z" clip-rule="evenodd" />
+                </svg>`;
+      }
+      
+      getTypeBadgeClass() {
+        return 'series';
+      }
+      
+      render() {
+        const element = document.createElement('div');
+        element.className = 'media-card bg-black/30 rounded-xl overflow-hidden border border-white/10';
+        element.dataset.id = this.id;
+        
+        element.innerHTML = `
+          <div class="relative pb-[150%] overflow-hidden">
+            <img 
+              src="${this.poster !== 'N/A' ? this.poster : '/api/placeholder/300/450'}" 
+              alt="${this.title}"
+              class="absolute top-0 left-0 w-full h-full object-cover transition-transform duration-500"
+            >
+            <div class="card-overlay absolute inset-0 flex flex-col justify-end p-4">
+              <div class="absolute top-4 right-4 flex gap-2">
+                <span class="type-badge series px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1">
+                  ${this.getTypeIcon()}
+                  Serie
+                </span>
+              </div>
+              <h3 class="font-bold text-base md:text-lg mb-1 line-clamp-2">${this.title}</h3>
+              <div class="flex justify-between item
