@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noche de Películas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #0f172a; /* slate-900 */
+            min-height: 100vh;
+        }
+
+        .card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .movie-confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .chosen-movie-animation {
+            transform-origin: center;
+        }
+
+        /* Spinner de carga */
+        .spinner {
+            border-top-color: #60a5fa; /* blue-400 */
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Estilo para el modal */
+        .modal {
+            transition: opacity 0.3s ease;
+        }
+
+        /* Estilo para sugerencias de búsqueda */
+        .suggestions-list {
+             position: absolute;
+             top: 100%; /* Below the input */
+             left: 0;
+             right: 0;
+             z-index: 10;
+             background-color: #1f2937; /* gray-800 */
+             border: 1px solid #374151; /* gray-700 */
+             border-top: none;
+             border-radius: 0 0 0.5rem 0.5rem; /* rounded-b-lg */
+             max-height: 200px; /* Limit height */
+             overflow-y: auto; /* Add scroll if needed */
+             box-shadow: 0 10px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .suggestion-item {
+            padding: 0.75rem; /* p-3 */
+            color: #e5e7eb; /* gray-100 */
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .suggestion-item:hover {
+            background-color: #374151; /* gray-700 */
+        }
+
+        .suggestion-item span {
+            font-size: 0.875rem; /* text-sm */
+        }
+         .suggestion-item small {
+            font-size: 0.75rem; /* text-xs */
+            color: #9ca3af; /* gray-400 */
+            margin-left: 0.5rem; /* ml-2 */
+         }
+
+         /* Custom utility for responsive display */
+         .md-block {
+            display: none;
+         }
+         @media (min-width: 768px) {
+            .md-block {
+                display: block;
+            }
+         }
+    </style>
+</head>
+<body class="text-gray-100">
+    <nav class="bg-gradient-to-r from-blue-900 to-indigo-900 shadow-lg">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-2xl md:text-3xl font-bold text-white flex items-center">
+                <i class="fas fa-film mr-3 text-yellow-400"></i>
+                <span>Noche de Películas</span>
+            </h1>
+            <div class="md-block"> <button id="theme-toggle" class="p-2 rounded-full hover:bg-blue-800 transition duration-300">
+                    <i class="fas fa-moon text-yellow-300"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="bg-gradient-to-b from-indigo-900 to-blue-900 py-8 mb-6">
+        <div class="container mx-auto px-4 text-center">
+            <h2 class="text-xl md:text-3xl font-bold mb-4">¿No sabes qué película ver esta noche?</h2>
+            <p class="text-gray-300 mb-6">Agrega opciones y deja que la suerte decida por ti</p>
+
+            <div class="flex flex-col md:flex-row justify-center items-center space-y-3 md:space-y-0 md:space-x-3">
+                <div class="relative w-full md:w-1/2 lg:w-1/3">
+                    <input type="text" id="movieInput" placeholder="Escribe una película..."
+                           class="w-full pl-10 pr-4 py-2 rounded-lg bg-gray-800 border border-gray-700 focus:outline-none focus:border-blue-500 transition duration-300">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-500"></i>
+                     <div id="suggestions" class="suggestions-list hidden">
+                        </div>
+                </div>
+
+                <button id="add-button"
+                        class="w-full md:w-auto px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 transition duration-300 flex items-center justify-center">
+                    <i class="fas fa-plus mr-2"></i>
+                    <span>Agregar</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-6">
+        <div id="movies" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            </div>
+
+        <div id="no-movies" class="text-center py-12 hidden">
+            <i class="fas fa-film text-4xl text-gray-600 mb-4"></i>
+            <p class="text-gray-500">No has agregado películas aún.</p>
+        </div>
+
+        <div class="mt-8 mb-4 text-center">
+            <button id="choose-button"
+                    class="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg shadow-lg hover:from-purple-700 hover:to-pink-700 transition duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fas fa-random mr-2"></i>
+                <span>Elegir Película al Azar</span>
+            </button>
+        </div>
+
+        <div id="chosen-movie-container" class="mt-8 text-center hidden">
+            <h2 class="text-2xl font-bold mb-2">¡Ya tenemos una ganadora!</h2>
+            <div id="chosen-movie-card" class="chosen-movie-animation bg-gradient-to-r from-blue-900 to-indigo-900 p-6 rounded-xl shadow-2xl max-w-md mx-auto">
+                <div id="chosen-movie" class="text-xl font-bold text-white"></div>
+                <div id="chosen-movie-year" class="text-gray-300 mt-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="movie-modal" class="modal fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-900 rounded-lg shadow-2xl w-full max-w-md md:max-w-lg overflow-hidden">
+            <div class="relative">
+                <div id="modal-poster-container" class="h-64 bg-gray-800 flex items-center justify-center">
+                    <img id="modal-poster" class="h-full object-contain" src="" alt="Movie poster">
+                </div>
+                <button id="close-modal" class="absolute top-2 right-2 bg-gray-900 bg-opacity-70 rounded-full p-2">
+                    <i class="fas fa-times text-white"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <h3 id="modal-title" class="text-xl font-bold mb-1"></h3>
+                <div class="flex items-center space-x-2 mb-4">
+                    <span id="modal-year" class="text-gray-400"></span>
+                    <span class="text-gray-500">•</span>
+                    <span id="modal-runtime" class="text-gray-400"></span>
+                    <span class="text-gray-500">•</span>
+                    <span id="modal-rating" class="bg-yellow-600 text-white px-2 py-1 rounded text-xs"></span>
+                </div>
+                 <div class="flex items-center space-x-2 mb-4 flex-wrap"> <div id="modal-genre" class="text-sm flex flex-wrap gap-1"></div> </div>
+                <p id="modal-plot" class="text-gray-300 mb-4"></p>
+                <div class="border-t border-gray-700 pt-4">
+                    <div class="flex justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Director</p>
+                            <p id="modal-director" class="font-medium"></p>
+                        </div>
+                        <div>
+                            <p class="text-gray-400 text-sm">Actores</p>
+                            <p id="modal-actors" class="font-medium"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-spinner" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="spinner w-12 h-12 border-4 border-blue-200 border-solid rounded-full"></div>
+    </div>
+
+    <script>
+        // Configuración
+        const apiKey = '8fd7bbe5'; // Reemplaza con tu API Key de OMDB
+        let movies = [];
+        let searchTimeout = null; // To debounce search input
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            updateMoviesDisplay();
+            document.getElementById('choose-button').disabled = true;
+
+            const movieInput = document.getElementById('movieInput');
+            const addButton = document.getElementById('add-button');
+            const suggestionsList = document.getElementById('suggestions');
+
+            // Event listener para el input (tecla Enter y búsqueda)
+            movieInput.addEventListener('input', handleSearchInput);
+            movieInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    addMovie();
+                }
+            });
+
+             // Add movie button click listener
+            addButton.addEventListener('click', addMovie);
+
+            // Hide suggestions when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!movieInput.parentElement.contains(e.target)) {
+                    suggestionsList.classList.add('hidden');
+                }
+            });
+
+
+            // Cerrar modal
+            document.getElementById('close-modal').addEventListener('click', closeModal);
+
+            // Evento para alternar tema (funcionalidad que podrías implementar)
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                // Aquí podrías implementar la funcionalidad de cambio de tema
+                alert('¡Funcionalidad de cambio de tema próximamente!');
+            });
+
+             // Add click listener for the choose button
+            document.getElementById('choose-button').addEventListener('click', chooseRandomMovie);
+        });
+
+        function handleSearchInput() {
+            const input = document.getElementById('movieInput');
+            const suggestionsList = document.getElementById('suggestions');
+            const query = input.value.trim();
+
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+
+            if (query.length < 2) { // Minimum characters to search
+                suggestionsList.classList.add('hidden');
+                suggestionsList.innerHTML = '';
+                return;
+            }
+
+            // Set a new timeout to debounce the search
+            searchTimeout = setTimeout(() => {
+                searchMovies(query);
+            }, 300); // Search after 300ms of inactivity
+        }
+
+        async function searchMovies(query) {
+             const suggestionsList = document.getElementById('suggestions');
+             suggestionsList.innerHTML = ''; // Clear previous suggestions
+
+            try {
+                // Using the search parameter 's' for multiple results
+                const res = await fetch(`https://www.omdbapi.com/?s=${encodeURIComponent(query)}&apikey=${apiKey}`);
+                const data = await res.json();
+
+                if (data.Response === 'True' && data.Search) {
+                    // Limit to top 5 or 10 suggestions
+                    const limitedSuggestions = data.Search.slice(0, 10);
+
+                    limitedSuggestions.forEach(movie => {
+                        const suggestionItem = document.createElement('div');
+                        suggestionItem.className = 'suggestion-item';
+                         // Use data attributes to store title, year, and imdbID
+                        suggestionItem.dataset.title = movie.Title;
+                        suggestionItem.dataset.year = movie.Year;
+                        suggestionItem.dataset.imdbid = movie.imdbID;
+
+                        suggestionItem.innerHTML = `
+                             <span>${movie.Title}</span>
+                             <small>(${movie.Year})</small>
+                         `;
+
+                        suggestionItem.addEventListener('click', () => {
+                             // Populate the input field with the selected title
+                            document.getElementById('movieInput').value = movie.Title;
+                            suggestionsList.classList.add('hidden'); // Hide suggestions
+                            suggestionsList.innerHTML = ''; // Clear suggestions
+
+                             // Optional: Automatically add the movie after selection
+                             // addMovie(); // Or fetch details and add by imdbID
+
+                        });
+                         suggestionsList.appendChild(suggestionItem);
+                    });
+
+                    suggestionsList.classList.remove('hidden');
+                } else {
+                    suggestionsList.classList.add('hidden');
+                     suggestionsList.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Error searching movies:', error);
+                 suggestionsList.classList.add('hidden');
+                 suggestionsList.innerHTML = '';
+            }
+        }
+
+
+        async function addMovie() {
+            const input = document.getElementById('movieInput');
+            const suggestionsList = document.getElementById('suggestions');
+            const name = input.value.trim();
+
+            if (!name) {
+                shakeElement(input);
+                return;
+            }
+
+            showLoadingSpinner();
+            suggestionsList.classList.add('hidden'); // Hide suggestions when adding
+            suggestionsList.innerHTML = '';
+
+            try {
+                 // Fetch full details using the title from input
+                const res = await fetch(`https://www.omdbapi.com/?t=${encodeURIComponent(name)}&apikey=${apiKey}`);
+                const data = await res.json();
+
+                if (data.Response === 'True') {
+                    // Verificar si la película ya existe en la lista
+                    const exists = movies.some(m => m.imdbID === data.imdbID);
+
+                    if (exists) {
+                        animateNotification('¡Esta película ya está en tu lista!', 'warning');
+                    } else {
+                        movies.push(data);
+                        updateMoviesDisplay();
+                        input.value = '';
+                        animateNotification('¡Película agregada exitosamente!', 'success');
+                    }
+                } else {
+                    animateNotification('Película no encontrada. Intenta con otro título.', 'error');
+                }
+            } catch (error) {
+                animateNotification('Error al buscar la película. Intenta más tarde.', 'error');
+                console.error('Error:', error);
+            } finally {
+                hideLoadingSpinner();
+            }
+        }
+
+        function updateMoviesDisplay() {
+            const container = document.getElementById('movies');
+            const noMovies = document.getElementById('no-movies');
+            const chooseButton = document.getElementById('choose-button');
+            const chosenContainer = document.getElementById('chosen-movie-container');
+
+            container.innerHTML = '';
+
+            if (movies.length === 0) {
+                noMovies.classList.remove('hidden');
+                chooseButton.disabled = true;
+                 // Hide the chosen movie container if no movies are left
+                 if (!chosenContainer.classList.contains('hidden')) {
+                     gsap.to(chosenContainer, {
+                        opacity: 0,
+                        y: -20,
+                        duration: 0.3,
+                        onComplete: () => {
+                            chosenContainer.classList.add('hidden');
+                            gsap.set(chosenContainer, { opacity: 1, y: 0 });
+                        }
+                    });
+                }
+
+            } else {
+                noMovies.classList.add('hidden');
+                chooseButton.disabled = false;
+
+                movies.forEach((movie, index) => {
+                    const movieCard = document.createElement('div');
+                    movieCard.className = 'card bg-gray-800 rounded-lg overflow-hidden shadow-lg'; // Tailwind classes
+                    movieCard.dataset.index = index; // Still using data-index for quick reference
+                    movieCard.dataset.imdbid = movie.imdbID; // Store imdbID
+
+                    const posterUrl = movie.Poster !== 'N/A' ? movie.Poster : 'https://via.placeholder.com/300x450?text=No+Poster'; // Use a simple placeholder
+
+                    movieCard.innerHTML = `
+                        <div class="relative pb-[150%]">
+                            <img src="${posterUrl}" alt="${movie.Title}" class="absolute inset-0 w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-3">
+                                <h3 class="text-sm font-medium text-white leading-tight">${movie.Title}</h3>
+                                <p class="text-xs text-gray-300">${movie.Year}</p>
+                            </div>
+                             <button class="remove-movie absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 transition-opacity duration-300" data-index="${index}">
+                                <i class="fas fa-times text-xs"></i>
+                            </button>
+                        </div>
+                    `;
+
+                    container.appendChild(movieCard);
+
+                    // Animar entrada de la tarjeta
+                    gsap.from(movieCard, {
+                        y: 50,
+                        opacity: 0,
+                        duration: 0.5,
+                        delay: index * 0.05,
+                        ease: "power3.out"
+                    });
+
+                    // Add hover effects for remove button
+                    movieCard.addEventListener('mouseenter', () => {
+                         const removeBtn = movieCard.querySelector('.remove-movie');
+                         gsap.to(removeBtn, { opacity: 1, duration: 0.2 });
+                    });
+
+                    movieCard.addEventListener('mouseleave', () => {
+                         const removeBtn = movieCard.querySelector('.remove-movie');
+                         gsap.to(removeBtn, { opacity: 0, duration: 0.2 });
+                    });
+
+
+                    // Añadir evento click para mostrar detalles
+                    movieCard.addEventListener('click', (e) => {
+                         // Prevent showing details when clicking the remove button
+                        if (!e.target.closest('.remove-movie')) {
+                             // Find the movie object by imdbID for robustness
+                             const clickedMovie = movies.find(m => m.imdbID === movieCard.dataset.imdbid);
+                             if(clickedMovie) {
+                                showMovieDetails(clickedMovie);
+                             }
+                        }
+                    });
+
+                    // Evento para el botón de eliminar
+                    movieCard.querySelector('.remove-movie').addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent click on card
+                        const indexToRemove = parseInt(e.target.closest('.remove-movie').dataset.index);
+                        removeMovie(indexToRemove);
+                    });
+                });
+            }
+        }
+
+        function removeMovie(index) {
+             // Use GSAP to animate out the element corresponding to the index
+             // Select the element by its data-index before modifying the array
+             const cardToRemove = document.querySelector(`.card[data-index="${index}"]`);
+             if (!cardToRemove) return; // Exit if card not found
+
+            gsap.to(cardToRemove, {
+                scale: 0,
+                opacity: 0,
+                duration: 0.3,
+                onComplete: () => {
+                    // Remove the element from the DOM *after* the animation
+                    cardToRemove.remove();
+
+                    // Update the movies array *after* getting the index of the element to remove
+                    // Find the actual movie object to remove based on the initial index
+                    const movieToRemove = movies[index];
+                    movies = movies.filter(movie => movie.imdbID !== movieToRemove.imdbID);
+
+                    // Re-render the list to update indices and display
+                    updateMoviesDisplay();
+
+                    // If the chosen movie was removed, hide the container
+                    const chosenContainer = document.getElementById('chosen-movie-container');
+                    const chosenMovieElement = document.getElementById('chosen-movie');
+                     // Check if the removed movie was the currently chosen one by title (simple check)
+                    if (!chosenContainer.classList.contains('hidden') && chosenMovieElement.textContent === movieToRemove.Title) {
+                         gsap.to(chosenContainer, {
+                            opacity: 0,
+                            y: -20,
+                            duration: 0.3,
+                            onComplete: () => {
+                                chosenContainer.classList.add('hidden');
+                                gsap.set(chosenContainer, { opacity: 1, y: 0 });
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+
+        function chooseRandomMovie() {
+            if (movies.length === 0) return;
+
+            const chosenContainer = document.getElementById('chosen-movie-container');
+            const chosenMovieEl = document.getElementById('chosen-movie');
+            const chosenMovieYearEl = document.getElementById('chosen-movie-year');
+            const chosenCard = document.getElementById('chosen-movie-card');
+
+             // Hide the current chosen movie card if visible before starting the new selection animation
+            if (!chosenContainer.classList.contains('hidden')) {
+                gsap.to(chosenCard, {
+                    scale: 0.8,
+                    opacity: 0,
+                    duration: 0.3,
+                    onComplete: () => {
+                        startSelection();
+                    }
+                });
+            } else {
+                 // If hidden, just start the selection and reveal later
+                startSelection();
+            }
+
+            function startSelection() {
+                 // Ensure the container is visible before starting the flicker
+                 chosenContainer.classList.remove('hidden');
+                 gsap.set(chosenCard, { scale: 1, opacity: 1 }); // Reset style before animation
+
+                // Elegir película aleatoria
+                const random = Math.floor(Math.random() * movies.length);
+                const randomMovie = movies[random];
+
+                // Animación de selección (flicker)
+                let counter = 0;
+                const totalFlickers = 15;
+                const flickerDuration = 2000; // Total time for flickering in ms
+                const flickerIntervalTime = flickerDuration / totalFlickers;
+
+                const flickerInterval = setInterval(() => {
+                    const tempIndex = Math.floor(Math.random() * movies.length);
+                    const tempMovie = movies[tempIndex];
+
+                    chosenMovieEl.textContent = tempMovie.Title;
+                    chosenMovieYearEl.textContent = tempMovie.Year;
+
+                    counter++;
+
+                    if (counter >= totalFlickers) {
+                        clearInterval(flickerInterval);
+
+                        // Mostrar la película elegida
+                        chosenMovieEl.textContent = randomMovie.Title;
+                        chosenMovieYearEl.textContent = randomMovie.Year;
+
+                        // Animar el resultado final
+                        gsap.fromTo(chosenCard,
+                            { scale: 0.9, opacity: 0.7 },
+                            { scale: 1, opacity: 1, duration: 0.7, ease: "elastic.out(1, 0.5)" }
+                        );
+
+                        // Crear confeti
+                        createConfetti();
+
+                        // Resaltar la tarjeta elegida en el grid
+                        highlightChosenMovie(randomMovie.imdbID); // Highlight by imdbID
+                    }
+                }, flickerIntervalTime);
+            }
+        }
+
+         function createConfetti() {
+            const colors = ['#f44336', '#2196f3', '#ffeb3b', '#4caf50', '#9c27b0'];
+            const confettiCount = 100;
+
+             // Get the position of the chosen movie card
+            const chosenCard = document.getElementById('chosen-movie-card');
+            const rect = chosenCard.getBoundingClientRect();
+            const startX = rect.left + rect.width / 2;
+            const startY = rect.top + rect.height / 2;
+
+            for (let i = 0; i < confettiCount; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'movie-confetti';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                document.body.appendChild(confetti);
+
+                // Animation properties
+                const endX = startX + (Math.random() - 0.5) * 600; // Spread horizontally
+                const endY = startY + (Math.random() - 0.5) * 600 + 200; // Go downwards more
+                const rotation = Math.random() * 360;
+                const duration = 2 + Math.random() * 2; // Duration between 2 and 4 seconds
+                const ease = "power1.out";
+
+
+                gsap.fromTo(confetti,
+                    {
+                        x: startX,
+                        y: startY,
+                        opacity: 1,
+                        rotation: 0
+                    },
+                    {
+                        x: endX,
+                        y: endY,
+                        rotation: rotation,
+                        opacity: 0,
+                        duration: duration,
+                        ease: ease,
+                        onComplete: () => {
+                            confetti.remove();
+                        }
+                    }
+                );
+            }
+        }
+
+        function highlightChosenMovie(imdbID) {
+             // Remove highlight from previous selection
+            document.querySelectorAll('.card').forEach(card => {
+                gsap.killTweensOf(card); // Kill any ongoing highlight animations
+                 // Reset box-shadow style using GSAP for consistency
+                 gsap.to(card, { boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', duration: 0.3 }); // Reset to default shadow
+            });
+
+             // Find the card element by imdbID
+            const chosenCard = document.querySelector(`.card[data-imdbid="${imdbID}"]`);
+
+            if (chosenCard) {
+                gsap.fromTo(chosenCard,
+                    { boxShadow: '0 0 0 rgba(59, 130, 246, 0)' }, // Start with no glow
+                    {
+                        boxShadow: '0 0 30px rgba(59, 130, 246, 0.8)', // Blue glow
+                        repeat: 3,
+                        yoyo: true,
+                        duration: 0.5
+                    }
+                );
+             }
+        }
+
+
+        function showMovieDetails(movie) {
+            const modal = document.getElementById('movie-modal');
+
+            // Llenar datos del modal
+            document.getElementById('modal-poster').src = movie.Poster !== 'N/A' ? movie.Poster : 'https://via.placeholder.com/300x450?text=No+Poster';
+            document.getElementById('modal-title').textContent = movie.Title;
+            document.getElementById('modal-year').textContent = movie.Year;
+            document.getElementById('modal-runtime').textContent = movie.Runtime;
+            document.getElementById('modal-rating').textContent = movie.imdbRating !== 'N/A' ? `IMDB: ${movie.imdbRating}` : 'N/A'; // Display rating nicely
+            document.getElementById('modal-plot').textContent = movie.Plot !== 'N/A' ? movie.Plot : 'Trama no disponible.';
+            document.getElementById('modal-director').textContent = movie.Director !== 'N/A' ? movie.Director : 'No disponible';
+             // Limit actors displayed
+            document.getElementById('modal-actors').textContent = movie.Actors !== 'N/A' ? movie.Actors.split(', ').slice(0, 2).join(', ') + (movie.Actors.split(', ').length > 2 ? '...' : '') : 'No disponible';
+
+
+            // Géneros
+            const genreContainer = document.getElementById('modal-genre');
+            genreContainer.innerHTML = '';
+             if (movie.Genre !== 'N/A') {
+                movie.Genre.split(', ').forEach(genre => {
+                    const genreTag = document.createElement('span');
+                    genreTag.className = 'bg-blue-900 text-white text-xs px-2 py-1 rounded-full'; // Tailwind classes
+                    genreTag.textContent = genre;
+                    genreContainer.appendChild(genreTag);
+                });
+             } else {
+                  genreContainer.textContent = 'Géneros no disponibles';
+                  genreContainer.classList.add('text-gray-400', 'text-sm'); // Add some styling for the text
+             }
+
+
+            // Mostrar modal con animación
+            modal.classList.remove('hidden');
+
+            gsap.fromTo(modal,
+                { opacity: 0 },
+                { opacity: 1, duration: 0.3 }
+            );
+
+            const modalContent = modal.querySelector('div');
+            gsap.fromTo(modalContent,
+                { y: 50, opacity: 0 },
+                { y: 0, opacity: 1, duration: 0.4, delay: 0.1 }
+            );
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('movie-modal');
+            const modalContent = modal.querySelector('div');
+
+            gsap.to(modalContent, {
+                y: 50,
+                opacity: 0,
+                duration: 0.4,
+                onComplete: () => {
+                     gsap.to(modal, {
+                        opacity: 0,
+                        duration: 0.3,
+                        onComplete: () => {
+                            modal.classList.add('hidden');
+                            gsap.set(modalContent, { y: 0, opacity: 1 }); // Reset content position/opacity for next time
+                        }
+                    });
+                }
+            });
+        }
+
+        // Utilidades
+        function showLoadingSpinner() {
+            document.getElementById('loading-spinner').classList.remove('hidden');
+        }
+
+        function hideLoadingSpinner() {
+            document.getElementById('loading-spinner').classList.add('hidden');
+        }
+
+        function shakeElement(element) {
+            gsap.fromTo(element,
+                { x: 0 },
+                { x: 10, duration: 0.1, repeat: 3, yoyo: true }
+            );
+        }
+
+        function animateNotification(message, type = 'info') {
+            // Eliminar notificaciones existentes
+            const existingNotifications = document.querySelectorAll('.notification');
+            existingNotifications.forEach(notif => notif.remove());
+
+            // Crear nueva notificación
+            const notification = document.createElement('div');
+             // Use Tailwind classes for styling
+            notification.className = `notification fixed bottom-6 left-1/2 transform -translate-x-1/2 px-4 py-3 rounded-lg shadow-lg z-50 text-white flex items-center`;
+
+            // Estilo según tipo
+            let bgColorClass = 'bg-blue-600';
+            let iconClass = 'fa-info-circle';
+
+            if (type === 'success') {
+                bgColorClass = 'bg-green-600';
+                iconClass = 'fa-check-circle';
+            } else if (type === 'error') {
+                bgColorClass = 'bg-red-600';
+                iconClass = 'fa-exclamation-circle';
+            } else if (type === 'warning') {
+                bgColorClass = 'bg-yellow-600';
+                iconClass = 'fa-exclamation-triangle';
+            }
+
+            notification.classList.add(bgColorClass);
+
+            notification.innerHTML = `
+                <i class="fas ${iconClass} mr-2"></i>
+                <span>${message}</span>
+            `;
+
+            document.body.appendChild(notification);
+
+            // Animar entrada
+            gsap.fromTo(notification,
+                { y: 50, opacity: 0 },
+                { y: 0, opacity: 1, duration: 0.3 }
+            );
+
+            // Animar salida
+            setTimeout(() => {
+                gsap.to(notification, {
+                    y: 50,
+                    opacity: 0,
+                    duration: 0.3,
+                    onComplete: () => notification.remove()
+                });
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
